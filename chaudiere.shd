@@ -1,0 +1,12 @@
+
+module chaudiere(chaud, froid : on)
+
+   /* cannot specify an initial state : how would it be implemented? */
+	fsm asynchronous
+		off -> off when /froid
+		off -> on when froid
+		on -> on when /chaud
+		on -> off when chaud
+	end fsm
+	
+end module

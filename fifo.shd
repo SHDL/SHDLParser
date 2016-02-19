@@ -1,0 +1,69 @@
+
+module fifo16x8(rst, clk, put, get, din[7..0] : dout[7..0], empty, full)
+
+   // wrAddr pointeur d'écriture
+   count4(rst, clk, enWr : wrAddr[3..0]);
+   enWr = put * /full;
+   
+   // rdAddr pointeur de lecture
+   count4(rst, clk, enRd : rdAddr[3..0]);   
+   enRd = get * /empty;
+   
+   // mémoire de stockage
+   rams_dual_asyn_read16x8(clk, put, wrAddr[3..0], rdAddr[3..0], din[7..0] : _[7..0], dout[7..0]);
+   
+   // lastGet indique que le pointeur de lecture est sur le point de rattraper le pointeur d'écriture
+   incr4(rdAddr[3..0] : rdAddrPlus1[3..0]);
+   eq4(rdAddrPlus1[3..0], wrAddr[3..0] : lastGet);
+   
+   // lastPut indique que le pointeur d'écriture est sur le point de rattraper le pointeur de lecture
+   incr4(wrAddr[3..0] : wrAddrPlus1[3..0]);
+   eq4(wrAddrPlus1[3..0], rdAddr[3..0] : lastPut);
+   
+   e = get*/put*lastGet
+   f = /get*put*lastPut
+
+   // machine d'état
+   statemachine synchronous on clk, empty while rst
+      empty -> empty when /put + get
+      empty -> neither when put*/get
+      
+      neither -> empty when e
+      neither -> full when f
+      neither -> neither when /e*/f
+      
+      full -> full when /get + put
+      full -> neither when get*/put
+   end statemachine
+   
+end module
+
+
+module flipflopT(rst, clk, en, t : on, off)
+   statemachine off while rst, synchronous on clk
+      off -> off when /t + /en
+      on -> on when /t + /en
+      off -> on when t * en
+      on -> off when t * en
+   end statemachine
+end module
+
+
+module count2Z(rst, clk, en, sclr : q[1..0], allone)
+   flipflopT(rst, clk, en, t[0] : q[0], _)
+   flipflopT(rst, clk, en, t[1] : q[1], _)
+   t[0] = /sclr + q[0]
+   t[1] = /sclr*q[0] + q[1]
+   allone = q[0] * q[1]
+end module
+
+module count4Z(rst, clk, en, sclr : q[3..0], allone)
+   count2Z(rst, clk, en, sclr : q[1..0], alloneL)
+   enH = en*alloneL + en*sclr
+   count2Z(rst, clk, enH, sclr : q[3..2], alloneH)
+   allone = alloneL * alloneH
+end module
+
+
+
+

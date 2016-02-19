@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "argv": "0.0.2",
+    "command-line-args": "^2.1.4",
+    "q": "^1.4.1"
+  }
+}

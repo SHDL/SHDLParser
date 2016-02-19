@@ -1,0 +1,9 @@
+
+module flipflopT(rst, clk, en, t : on)
+	statemachine off while rst, synchronous on clk
+		off -> off when /t + /en
+		on -> on when /t + /en
+		off -> on when t * en
+		on -> off when t * en
+	end statemachine
+end module

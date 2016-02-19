@@ -1,0 +1,25 @@
+
+
+module flipflopD(rst, clk, en, d : on)
+   fsm off while rst, synchronous on clk
+      off -> off when /en,
+      on -> on when /en,
+      * -> on when d * en,
+      * -> off when /d * en,
+   end fsm
+end module
+
+
+module reg4(rst, clk, en, e[3..0] : s[3..0])
+   flipflopD(rst, clk, en, e[0] : s[0])
+   flipflopD(rst, clk, en, e[1] : s[1])
+   flipflopD(rst, clk, en, e[2] : s[2])
+   flipflopD(rst, clk, en, e[3] : s[3])
+end module
+
+
+module reg8(rst, clk, en, e[7..0] : s[7..0])
+   reg4(rst, clk, en, e[3..0] : s[3..0])
+   reg4(rst, clk, en, e[7..4] : s[7..4])
+end module
+
