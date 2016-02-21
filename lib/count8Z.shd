@@ -1,0 +1,8 @@
+
+module count8Z(rst, clk, en, sclr : q[7..0], allone)
+	count4Z(rst, clk, en, sclr : q[3..0], alloneL)
+	enH = en*alloneL + en*sclr
+	count4Z(rst, clk, enH, sclr : q[7..4], alloneH)
+	allone = alloneL * alloneH
+end module
+

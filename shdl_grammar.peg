@@ -16,9 +16,12 @@ Module
 
 
 Signal "signal"
-  = name:SignalName _ '[' _ i:Integer ']' { return {"type": "vector", "name": name, "start": i, "stop": i}; }
-  / name:SignalName _ '[' _ i:Integer _ DotDot _ j:Integer ']' { return {"type": "vector", "name": name, "start": i, "stop": j}; }
-  / name:SignalName { return {"type": "scalar", "name": name, "location": location()}; }
+  = name:SignalName _ '[' _ i:NaturalInteger ']'
+     { return {"type": "vector", "name": name, "start": i, "stop": i}; }
+  / name:SignalName _ '[' _ i:NaturalInteger _ DotDot _ j:NaturalInteger ']'
+     { return {"type": "vector", "name": name, "start": i, "stop": j}; }
+  / name:SignalName
+     { return {"type": "scalar", "name": name, "location": location()}; }
 
 DotDot
   = '..'
@@ -62,7 +65,9 @@ InstanceList
 Instance
   = ModuleInstance
   / Assignment
+  / TriState
   / Fsm
+  / Array
 
 
 Assignment
@@ -77,9 +82,11 @@ SumOfTerms "sum of terms"
 
 Term "term"
   = maxterm:MaxTerm _ '*' _ term:Term
-     { return {'type':'term', 'maxterms': [maxterm].concat(term['maxterms'])}; }
+     { return {'type': 'term', 'maxterms': [maxterm].concat(term['maxterms'])}; }
   / maxterm:MaxTerm
-     { return {'type':'term', 'maxterms':[maxterm]}; }
+     { return {'type': 'term', 'maxterms': [maxterm]}; }
+  / value:NaturalInteger
+     { return {'type': 'constant', 'value': value}; }
 
 
 MaxTerm "maxterm"
@@ -89,12 +96,24 @@ MaxTerm "maxterm"
      { return {'type':'maxterm', 'signal':signal, 'inverted': true}; }
 
 
+TriState
+  = signal:Signal _ '=' _ equation:SumOfTerms _ ':' _ oe:MaxTerm
+     { return {'type': 'tri_state', 'signal': signal, 'equation': equation, oe: oe }; }
+
 
 ModuleInstance
   = name:ModuleName _ '(' _ args:ArgList _ ')'
      { return {'type': 'module_instance', 'name': name, 'arguments': args}; }
 
 
+Array
+  = 'array' _ input:Signal _ 'to' _ output:Signal _ values:(ArrayValue*) _ 'end' _ 'array'
+     { return { 'type': 'array', 'input': input, 'output': output, 'values': values }; }
+
+ArrayValue
+  = input:NaturalInteger _ '->' _ output:Integer _
+     { return { 'input': input, 'output': output }; }
+     
 
 Fsm
   = FsmKeyword _ header:FsmHeader _ rules:FsmRules _ 'end' _ FsmKeyword
@@ -130,14 +149,24 @@ StateNameList
 
 
 
+NaturalInteger
+  = '0b' [0-1]+
+    { return parseInt(text(), 2); }
+  / '0x' [0-9abcdefABCDEF]+
+    { return parseInt(text(), 16); }
+  / [0-9]+
+    { return parseInt(text(), 10); }
+
+Integer
+  = value:NaturalInteger     
+    { return value; }
+  / '-' _ value:NaturalInteger     
+    { return -value; }
+
+
 separ
   = ',' { return []; }
   / ':' { return []; }
-
-
-Integer "integer"
-  = [0-9]+ { return parseInt(text(), 10); }
-
 
 _ "whitespace"
   = ( whiteSpace / lineTerminator / enclosedComment / lineComment )*

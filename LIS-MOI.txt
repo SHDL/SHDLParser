@@ -1,3 +1,7 @@
 
-BUG: manque dans la grammaire les constantes : 0, 1, 0b111, 0xF6, -123
-BUG: manque les tri-states
+BUG : manque concaténation de bus ?
+
+
+v0.8.0 : read and parse files
+v0.8.1 : added syntax for tri-state assignments, constant values, array definitions
+

@@ -1,0 +1,7 @@
+
+module count4Z(rst, clk, en, sclr : q[3..0], allone)
+   count2Z(rst, clk, en, sclr : q[1..0], alloneL)
+   enH = en*alloneL + en*sclr
+   count2Z(rst, clk, enH, sclr : q[3..2], alloneH)
+   allone = alloneL * alloneH
+end module

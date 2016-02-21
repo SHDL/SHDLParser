@@ -1,0 +1,8 @@
+
+module count2Z(rst, clk, en, sclr : q[1..0], allone)
+   flipflopT(rst, clk, en, t[0] : q[0])
+   flipflopT(rst, clk, en, t[1] : q[1])
+   t[0] = /sclr + q[0]
+   t[1] = /sclr*q[0] + q[1]
+   allone = q[0] * q[1]
+end module
