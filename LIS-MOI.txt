@@ -4,4 +4,4 @@ BUG : manque concaténation de bus ?
 
 v0.8.0 : read and parse files
 v0.8.1 : added syntax for tri-state assignments, constant values, array definitions
-
+v0.8.2 : added syntax for compound signals, e.g. a[3..0] & b[3..0]

@@ -15,9 +15,22 @@ Module
   { return {"name": name, "params": params, "instances":instances}; }
 
 
-Signal "signal"
-  = name:SignalName _ '[' _ i:NaturalInteger ']'
+Signal "signal"     
+  /* duplicates necessary to eliminate left-recursion for compound signals */
+  /* rules for compound signals must be defined first */
+  = name:SignalName _ '[' _ i:NaturalInteger ']' _ '&' _ Signal
      { return {"type": "vector", "name": name, "start": i, "stop": i}; }
+  / name:SignalName _ '[' _ i:NaturalInteger _ DotDot _ j:NaturalInteger ']' _ '&' _ Signal
+     { return {"type": "vector", "name": name, "start": i, "stop": j}; }
+  / name:SignalName _ '[' _ i:NaturalInteger _ DotDot _ j:NaturalInteger ']' _ '&' _ Signal
+     { return {"type": "vector", "name": name, "start": i, "stop": j}; }
+  / name:SignalName _ '&' _ Signal
+     { return {"type": "scalar", "name": name, "location": location()}; }
+     
+  / name:SignalName _ '[' _ i:NaturalInteger ']'
+     { return {"type": "vector", "name": name, "start": i, "stop": i}; }
+  / name:SignalName _ '[' _ i:NaturalInteger _ DotDot _ j:NaturalInteger ']'
+     { return {"type": "vector", "name": name, "start": i, "stop": j}; }
   / name:SignalName _ '[' _ i:NaturalInteger _ DotDot _ j:NaturalInteger ']'
      { return {"type": "vector", "name": name, "start": i, "stop": j}; }
   / name:SignalName
@@ -107,7 +120,7 @@ ModuleInstance
 
 
 Array
-  = 'array' _ input:Signal _ 'to' _ output:Signal _ values:(ArrayValue*) _ 'end' _ 'array'
+  = 'array' _ input:Signal _ '->' _ output:Signal _ values:(ArrayValue*) _ 'end' _ 'array'
      { return { 'type': 'array', 'input': input, 'output': output, 'values': values }; }
 
 ArrayValue
