@@ -11,13 +11,13 @@ var cli = commandLineArgs([
   { name: 'verbose', type: Boolean, description: "Provide more details" },
   { name: 'shdlpath', type: String, multiple: false, description: "Directory names, separated by ':', where SHDL files are looked for; default is '.'" },
   { name: 'vhdldir', type: String, multiple: false, description: "Directory where VHDL files will be stored" },
-  { name: 'src', type: String, multiple: true, defaultOption: true, description: "SHDL file names" },
-  { name: 'root', type: String, multiple: false, description: "root module name (default: top of modules hierarchy)" },
+  { name: 'root', type: String, multiple: false, defaultOption: true, description: "name of module to synthesize" },
   { name: 'help', alias: 'h', type: Boolean, description: "Print usage" }
 ]);
 
 
-function readFileInPathWithDeferred(input_file, shdlPath, deferred, verbose) {
+function readFileInPath(input_file, shdlPath, verbose) {
+   var deferred = Q.defer();
    var notFoundCount = 0;
    for (var i = 0; i < shdlPath.length; i++) {
       var fullpath = path.join(shdlPath[i], input_file);
@@ -34,7 +34,7 @@ function readFileInPathWithDeferred(input_file, shdlPath, deferred, verbose) {
                }
             } else {
                // file found: create and report a file description
-               if (verbose) console.log(fullpath);
+               //if (verbose) console.log(fullpath);
                var fileDescription = { filename: input_file, fullpath: fullpath, text: text };
                deferred.resolve(fileDescription);
             }
@@ -43,9 +43,11 @@ function readFileInPathWithDeferred(input_file, shdlPath, deferred, verbose) {
       readTheFile(input_file, fullpath);
       
    }
+   return deferred.promise;
 }
 
-function writeFileWithDeferred(output_file, text, deferred) {
+function writeFile(output_file, text) {
+   var deferred = Q.defer();
    fs.writeFile('temp_file', text, function(err) {
       if (err) {
          var message = "*** error: cannot write output file " + output_file;
@@ -54,6 +56,7 @@ function writeFileWithDeferred(output_file, text, deferred) {
          deferred.resolve(text);
       }
    });
+   return deferred.promise;
 }
 
 try {
@@ -68,7 +71,7 @@ try {
       
    } else {
       // split --path parts
-      var shdlPath = (options.path ? options.path : '.').split(":");
+      var shdlPath = (options.shdlpath ? options.shdlpath : '.').split(":");
       
       // check that all path directories exist
       for (var i = 0; i < shdlPath.length; i++) {
@@ -83,6 +86,70 @@ try {
          checkDir(shdlPath[i]);
       }
       
+      // recursively look for module definition of <moduleName> and its submodules
+      // returns a promise of all descending module description objects, with root module first
+      function readModule(moduleName, alreadyReadModules) {
+         var deferred = Q.defer();
+         var input_file = moduleName + '.shd';
+         var readFilePromise = readFileInPath(input_file, shdlPath, options.verbose);
+         // wait for file-reading to complete then parse it and display syntactic errors
+         readFilePromise
+         .then(function(fileDescription) {
+            try {
+               // parse file text
+               var modules = shdlParser.parse(fileDescription.text);
+               // look for submodules and add them to modulesToRead when they are not in allReadModules
+               for (var j = 0; j < modules.length; j++) {
+                  var module = modules[j];
+                  // update alreadyReadModules
+                  if (alreadyReadModules.map(function(m) { return m.name; }).indexOf(module.name) === -1) {
+                     if (options.verbose) console.log("--- module '" + module.name + "' found in '" + fileDescription.fullpath + "'");
+                     alreadyReadModules.push(module);
+                     //alreadyReadModules[module.name] = module;
+                  }
+                  var allPromises = [];
+                  for (var i = 0; i < module.instances.length; i++) {
+                     var instance = module.instances[i];
+                     if (instance.type === 'module_instance') {
+                        if (alreadyReadModules.map(function(m) { return m.name; }).indexOf(instance.name) === -1) {
+                           // submodule has no definition yet: recursively read it
+                           var promise = readModule(instance.name, alreadyReadModules);
+                           allPromises.push(promise);
+                        }
+                     }
+                  }
+                  Q.all(allPromises)
+                  .then(function() {
+                     deferred.resolve(alreadyReadModules);
+                  })
+                  .fail(function(err) {
+                     var message = "aaa";
+                     deferred.reject(new Error(message));
+                  });
+               }
+            } catch(err) {
+               hasError = true;
+               var message = "*** error: " + fileDescription.fullpath + ", line " + err.location.start.line + ', column ' + err.location.start.column + ": " + err.message;
+               console.log(message);
+               throw new Error();
+            }
+         })
+         .fail(function() {
+            var message = "*** error: could not find definition of module '" + moduleName + "'";
+            console.log(message);
+            throw new Error();
+         });
+         return deferred.promise;
+      }
+      
+      // read root module and all its descendants
+      readModule(options.root, [])
+      .then(function(modules) {
+         console.log('GG ' + modules.map(function(m) { return m.name; }));
+      })
+      
+      
+      /*
       // read files in sequence
       if (options.verbose) console.log("--- looking up and reading files...");
       var allPromises = [];
@@ -144,9 +211,57 @@ try {
          return moduleDescriptionDict;
       })
       
-      // gather information on each module and attach it to moduleDescription; look for errors and warnings
+      // gather information on module/submodule relations and attach it to moduleDescription;
+      // look for root module and check that all its submodules are defined
       .then(function(moduleDescriptionDict) {
-         if (options.verbose) console.log("--- checking coherence...");
+         if (options.verbose) console.log("--- looking for root module...");
+         // in javascript dictionaries, keys are ordered
+         for (var moduleName in moduleDescriptionDict) {
+            if (moduleDescriptionDict.hasOwnProperty(moduleName)) {
+               var moduleDescription = moduleDescriptionDict[moduleName];
+               var module = moduleDescription.module;
+               
+               for (var i = 0; i < module.instances.length; i++) {
+                  var instance = module.instances[i];
+                  if (instance.type === 'module_instance') {
+                     // update list of submodules of module
+                     if (moduleDescription.subModules.indexOf(instance.name) == -1) {
+                        moduleDescription.subModules.push(instance.name);
+                     }
+                  }
+               }
+            }
+         }
+         // check that all submodules are defined
+         // build also the list of all submodule names (they cannot be root, except when explicitly set by --root option)
+         var allSubmoduleNames = [];
+         var missing = false;
+         for (var moduleName in moduleDescriptionDict) {
+            if (moduleDescriptionDict.hasOwnProperty(moduleName)) {
+               var moduleDescription = moduleDescriptionDict[moduleName];
+               var module = moduleDescription.module;
+               for (var j = 0; j < moduleDescription.subModules.length; j++) {
+                  var submoduleName = moduleDescription.subModules[j];
+                  if (allSubmoduleNames.indexOf(submoduleName) == -1) {
+                     allSubmoduleNames.push(submoduleName);
+                  }
+                  if (!moduleDescriptionDict.hasOwnProperty(submoduleName)) {
+                     console.log("*** missing module definition: " + submoduleName);
+                     missing = true;
+                  }
+               }
+            }
+         }
+         if (missing) {
+            // error will be reported in .fail statement
+            throw new Error();
+         }
+         return moduleDescriptionDict;
+      })
+      
+      // check modules definitions
+      .then(function(moduleDescriptionDict) {
+         if (options.verbose) console.log("--- checking modules...");
          // in javascript dictionaries, keys are ordered
          for (var moduleName in moduleDescriptionDict) {
             if (moduleDescriptionDict.hasOwnProperty(moduleName)) {
@@ -160,10 +275,6 @@ try {
                   } else if (instance.type === 'tri_state') {
                      
                   } else if (instance.type === 'module_instance') {
-                     // update list of submodules of module
-                     if (moduleDescription.subModules.indexOf(instance.name) == -1) {
-                        moduleDescription.subModules.push(instance.name);
-                     }
                      
                   } else if (instance.type === 'fsm') {
                      
@@ -173,7 +284,8 @@ try {
          }
          return moduleDescriptionDict;
       })
-      
+      */
+     
       // the end
       .then(function() {
          if (options.verbose) console.log('Done');
@@ -182,7 +294,7 @@ try {
          // display error messages coming from '.reject(message)' or 'throw new Error(message)'
          if (err.message) console.log(err.message);
       });
-
+      
    }
    
 } catch(err) {

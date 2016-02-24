@@ -4,10 +4,13 @@
 *
 */
 module alarm(rst, clk, en, delay[7..0] : alarm)
+
    // 8-bit counter
    count8Z(rst, clk, en, idle : cnt[7..0], _)
+   
    // compare counter value 'cnt' with 'delay'
    eq8(cnt[7..0], delay[7..0] : equal)
+   
    // finite state machine acting on 'en' and 'equal', producing 'alarm'
    // (fsm states can be used as signals in their container module, the active state being '1' and all others '0')
    fsm synchronous on clk, idle while rst
@@ -19,7 +22,4 @@ module alarm(rst, clk, en, delay[7..0] : alarm)
    end fsm
    
 end module
-
-
-
 
