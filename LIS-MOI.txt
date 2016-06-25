@@ -1,4 +1,7 @@
 
+Ex:
+node parse.js --shdlpath lib:. --root fifo
+
 BUG : manque concaténation de bus ?
 
 

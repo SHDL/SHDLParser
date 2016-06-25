@@ -19,20 +19,20 @@ Signal "signal"
   /* duplicates necessary to eliminate left-recursion for compound signals */
   /* rules for compound signals must be defined first */
   = name:SignalName _ '[' _ i:NaturalInteger ']' _ '&' _ Signal
-     { return {"type": "vector", "name": name, "start": i, "stop": i}; }
+     { return {"type": "vector", "name": name, "start": i, "stop": i, "location": location()}; }
   / name:SignalName _ '[' _ i:NaturalInteger _ DotDot _ j:NaturalInteger ']' _ '&' _ Signal
-     { return {"type": "vector", "name": name, "start": i, "stop": j}; }
+     { return {"type": "vector", "name": name, "start": i, "stop": j, "location": location()}; }
   / name:SignalName _ '[' _ i:NaturalInteger _ DotDot _ j:NaturalInteger ']' _ '&' _ Signal
-     { return {"type": "vector", "name": name, "start": i, "stop": j}; }
+     { return {"type": "vector", "name": name, "start": i, "stop": j, "location": location()}; }
   / name:SignalName _ '&' _ Signal
      { return {"type": "scalar", "name": name, "location": location()}; }
      
   / name:SignalName _ '[' _ i:NaturalInteger ']'
-     { return {"type": "vector", "name": name, "start": i, "stop": i}; }
+     { return {"type": "vector", "name": name, "start": i, "stop": i, "location": location()}; }
   / name:SignalName _ '[' _ i:NaturalInteger _ DotDot _ j:NaturalInteger ']'
-     { return {"type": "vector", "name": name, "start": i, "stop": j}; }
+     { return {"type": "vector", "name": name, "start": i, "stop": j, "location": location()}; }
   / name:SignalName _ '[' _ i:NaturalInteger _ DotDot _ j:NaturalInteger ']'
-     { return {"type": "vector", "name": name, "start": i, "stop": j}; }
+     { return {"type": "vector", "name": name, "start": i, "stop": j, "location": location()}; }
   / name:SignalName
      { return {"type": "scalar", "name": name, "location": location()}; }
 

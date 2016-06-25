@@ -61,7 +61,6 @@ function writeFile(output_file, text) {
 
 try {
    var options = cli.parse();   
-   //console.log(options);
    
    if (options.version) {
       console.log("version 0.8.0");
@@ -70,6 +69,8 @@ try {
       console.log(cli.getUsage());
       
    } else {
+      if (options.verbose) console.log(options);
+      
       // split --path parts
       var shdlPath = (options.shdlpath ? options.shdlpath : '.').split(":");
       
@@ -101,11 +102,12 @@ try {
                // look for submodules and add them to modulesToRead when they are not in allReadModules
                for (var j = 0; j < modules.length; j++) {
                   var module = modules[j];
+                  // associate to module the path of the file where it is defined
+                  module.fullpath = fileDescription.fullpath;
                   // update alreadyReadModules
                   if (alreadyReadModules.map(function(m) { return m.name; }).indexOf(module.name) === -1) {
                      if (options.verbose) console.log("--- module '" + module.name + "' found in '" + fileDescription.fullpath + "'");
                      alreadyReadModules.push(module);
-                     //alreadyReadModules[module.name] = module;
                   }
                   var allPromises = [];
                   for (var i = 0; i < module.instances.length; i++) {
@@ -146,145 +148,117 @@ try {
       readModule(options.root, [])
       .then(function(modules) {
          console.log('GG ' + modules.map(function(m) { return m.name; }));
-      })
-      
-      
-      /*
-      // read files in sequence
-      if (options.verbose) console.log("--- looking up and reading files...");
-      var allPromises = [];
-      for (var i = 0; i < options.src.length; i++) {
-         var input_file = options.src[i];
-         var deferred = Q.defer();
-         readFileInPathWithDeferred(input_file, shdlPath, deferred, options.verbose);
-         allPromises.push(deferred.promise);
-      }
-      
-      // wait for all file-readings to complete
-      Q.all(allPromises)
-      // then parse them in the order they were read and display syntactic errors
-      .then(function(fileDescriptions) {
-         if (options.verbose) console.log("--- checking syntax...");
-         var hasError = false;
-         for (var i = 0; i < fileDescriptions.length; i++) {
-            var fileDescription = fileDescriptions[i];
-            try {
-               // parse file text
-               var modules = shdlParser.parse(fileDescription.text);
-               // attach associated modules to object
-               fileDescription.modules = modules;
-            } catch(err) {
-               hasError = true;
-               var message = "*** error: " + fileDescription.fullpath + ", line " + err.location.start.line + ', column ' + err.location.start.column + ": " + err.message;
-               console.log(message);
-            }
+         
+         // root module is first
+         var rootModule = modules[0];
+         
+         // create a dictionary of modules indexed by name
+         var modulesDict = {};
+         for (var i = 0; i < modules.length; i++) {
+            var module = modules[i];
+            modulesDict[module.name] = modules[i];
          }
-         if (hasError) {
-            // error will be reported in .fail statement
-            throw new Error();
-         }
-         return fileDescriptions;
-      })
-      
-      // build a dictionary of modules descriptions
-      .then(function(fileDescriptions) {
-         var moduleDescriptionDict = {};
-         for (var i = 0; i < fileDescriptions.length; i++) {
-            var fileDescription = fileDescriptions[i];
-            for (var j = 0; j < fileDescription.modules.length; j++) {
-               var module = fileDescription.modules[j];
-               if (options.verbose) console.log(module.name);
-               // check if module has been defined already
-               if (moduleDescriptionDict.hasOwnProperty(module.name)) {
-                  var prevModuleDescription = moduleDescriptionDict[module.name];
-                  var message = "*** warning: module " + module.name + " in file " + fileDescription.fullpath + " has already been defined in file " + prevModuleDescription.fullpath + " -- ignoring ";
-                  console.log(message);
-               } else {
-                  moduleDescriptionDict[module.name] = {
-                     module: module,
-                     fullpath: fileDescription.fullpath,
-                     subModules: [],
-                  };
-               }
-            }
-         }
-         return moduleDescriptionDict;
-      })
-      
-      // gather information on module/submodule relations and attach it to moduleDescription;
-      // look for root module and check that all its submodules are defined
-      .then(function(moduleDescriptionDict) {
-         if (options.verbose) console.log("--- looking for root module...");
-         // in javascript dictionaries, keys are ordered
-         for (var moduleName in moduleDescriptionDict) {
-            if (moduleDescriptionDict.hasOwnProperty(moduleName)) {
-               var moduleDescription = moduleDescriptionDict[moduleName];
-               var module = moduleDescription.module;
-               
-               for (var i = 0; i < module.instances.length; i++) {
-                  var instance = module.instances[i];
-                  if (instance.type === 'module_instance') {
-                     // update list of submodules of module
-                     if (moduleDescription.subModules.indexOf(instance.name) == -1) {
-                        moduleDescription.subModules.push(instance.name);
+         
+         // for each module, create a dictionary of all its equipotentials indexed by name
+         for (var i = 0; i < modules.length; i++) {
+            var module = modules[i];
+            module.equipotentials = {};
+            
+            // update module.equipotentials with equipotential
+            function registerEquipotential(equipotential) {
+               if (equipotential.type === 'scalar') {
+                  if (module.equipotentials.hasOwnProperty(equipotential.name)) {
+                     var equi = module.equipotentials[equipotential.name];
+                     if (equi.type === 'vector') {
+                        // scalar signal previously defined as a vector signal
+                        var message = "*** error: " + module.fullpath + " - signal '" + equipotential.name + "' is used as a scalar, line " +
+                           equipotential.location.start.line + ', column ' + equipotential.location.start.column +
+                           ", whereas it is used as a vector, line " +
+                           equi.location.start.line + ', column ' + equi.location.start.column;
+                        console.log(message);
+                        throw new Error();
                      }
+                  } else {
+                     module.equipotentials[equipotential.name] = equipotential;
+                  }
+               } else if (equipotential.type === 'vector') {
+                  if (module.equipotentials.hasOwnProperty(equipotential.name)) {
+                     var equi = module.equipotentials[equipotential.name];
+                     if (equi.type === 'scalar') {
+                        // vector signal previously defined as a scalar signal
+                        if (equi.type !== 'vector') {
+                           var message = "*** error: " + module.fullpath + " - signal '" + equipotential.name + "' is used as a vector, line " +
+                              equipotential.location.start.line + ', column ' + equipotential.location.start.column +
+                              ", whereas it is used as a scalar, line " +
+                              equi.location.start.line + ', column ' + equi.location.start.column;
+                           console.log(message);
+                           throw new Error();
+                        } else {
+                           // extend vector start and/or end indexes
+                           equi.start = Math.min(equi.start, equipotential.start);
+                           equi.stop = Math.max(equi.stop, equipotential.stop);
+                        }
+                     }
+                  } else {
+                     module.equipotentials[equipotential.name] = equipotential;
                   }
                }
             }
-         }
-         // check that all submodules are defined
-         // build also the list of all submodule names (they cannot be root, except when explicitly set by --root option)
-         var allSubmoduleNames = [];
-         var missing = false;
-         for (var moduleName in moduleDescriptionDict) {
-            if (moduleDescriptionDict.hasOwnProperty(moduleName)) {
-               var moduleDescription = moduleDescriptionDict[moduleName];
-               var module = moduleDescription.module;
-               for (var j = 0; j < moduleDescription.subModules.length; j++) {
-                  var submoduleName = moduleDescription.subModules[j];
-                  if (allSubmoduleNames.indexOf(submoduleName) == -1) {
-                     allSubmoduleNames.push(submoduleName);
-                  }
-                  if (!moduleDescriptionDict.hasOwnProperty(submoduleName)) {
-                     console.log("*** missing module definition: " + submoduleName);
-                     missing = true;
-                  }
+            
+            // register equipotentials in module interface
+            for (var j = 0; j < module.params.length; j++) {
+               var param = module.params[j];
+               registerEquipotential(param);
+            }
+            
+            function registerSumOfTerms(equation) {
+               for (var i = 0; i < equation.terms; i++) {
+                  registerTerm(equation.terms[i]);
                }
             }
+            
+            function registerTerm(term) {
+               for (var i = 0; i < term.maxterms; i++) {
+                  registerMaxTerm(term.maxterms[i]);
+               }
+            }
+            
+            function registerMaxTerm(maxterm) {
+               registerEquipotential(maxterm.signal);
+            }
+            
+            // register equipotentials in module assignments, tri-states, submodule instances and fsm's
+            for (var i = 0; i < module.instances.length; i++) {
+               var instance = module.instances[i];
+               
+               if (instance.type === 'assignment') {
+                  // register left-term signal
+                  registerEquipotential(instance.signal);
+                  // register equation
+                  registerSumOfTerms(instance.equation);
+                  
+               } else if (instance.type === 'tri_state') {
+                  // register left-term signal
+                  registerEquipotential(instance.signal);
+                  // register equation
+                  registerSumOfTerms(instance.equation);
+                  // register output enable maxterm
+                  registerMaxTerm(instance.oe);
+                  
+               } else if (instance.type === 'module_instance') {
+                  for (var i = 0; i < instance.arguments.length; i++) {
+                     registerEquipotential(instance.arguments[i]);
+                  }
+                  
+               } else if (instance.type === 'fsm') {
+                  
+               }
+            }
+            
          }
-         if (missing) {
-            // error will be reported in .fail statement
-            throw new Error();
-         }
-         return moduleDescriptionDict;
+         
       })
       
-      // check modules definitions
-      .then(function(moduleDescriptionDict) {
-         if (options.verbose) console.log("--- checking modules...");
-         // in javascript dictionaries, keys are ordered
-         for (var moduleName in moduleDescriptionDict) {
-            if (moduleDescriptionDict.hasOwnProperty(moduleName)) {
-               var moduleDescription = moduleDescriptionDict[moduleName];
-               var module = moduleDescription.module;
-               
-               for (var i = 0; i < module.instances.length; i++) {
-                  var instance = module.instances[i];
-                  if (instance.type === 'assignment') {
-                     
-                  } else if (instance.type === 'tri_state') {
-                     
-                  } else if (instance.type === 'module_instance') {
-                     
-                  } else if (instance.type === 'fsm') {
-                     
-                  }
-               }
-            }
-         }
-         return moduleDescriptionDict;
-      })
-      */
      
       // the end
       .then(function() {

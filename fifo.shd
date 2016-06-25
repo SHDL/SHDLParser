@@ -2,8 +2,8 @@
 module fifo16x8(rst, clk, put, get, din[7..0] : dout[7..0], empty, full)
 
    // wrAddr pointeur d'écriture
-   count4(rst, clk, enWr : wrAddr[3..0]);
-   enWr = put * /full;
+   count4(rst, clk, enWr : wrAddr[3..0])
+   enWr = put * /full
    
    // rdAddr pointeur de lecture
    count4(rst, clk, enRd : rdAddr[3..0]);   
