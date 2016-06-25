@@ -77,8 +77,8 @@ InstanceList
 
 Instance
   = ModuleInstance
-  / Assignment
   / TriState
+  / Assignment
   / Fsm
   / Array
 
@@ -110,7 +110,7 @@ MaxTerm "maxterm"
 
 
 TriState
-  = signal:Signal _ '=' _ equation:SumOfTerms _ ':' _ oe:MaxTerm
+  = signal:Signal _ '=' _ equation:SumOfTerms _ ':' _ oe:SumOfTerms
      { return {'type': 'tri_state', 'signal': signal, 'equation': equation, oe: oe }; }
 
 
