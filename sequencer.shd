@@ -1,34 +1,42 @@
 
 module sequencer(rst, clk, ir[31..0], N, Z, V, C : oe_num[1..0], areg[4..0], cmd[5..0])
    
-   is_calc_instr = ir[31]*/ir[30]*/ir[13]
+   is_calc_instr_reg = ir[31]*/ir[30]*/ir[13]
    is_calc_instr_imm = ir[31]*/ir[30]*ir[13]
 
-   fsm synchronous on clk, fetch while rst
    
-      fetch -> it1 when it
-      
-      it1 -> it2 when 1
-      
-      it2 -> fetch when 1
-      
+   fsm synchronous on clk, fetch while rst
+
       fetch -> decode when /it
       
-      decode -> pcplus1 when is_calc_instr
+      decode -> pcplus1 when is_calc_instr_reg
             
-      decode -> calc_imm when is_calc_instr_imm   
+      decode -> calc_imm when is_calc_instr_imm
+      
+      calc_imm -> pcplus1 when 1
       
       pcplus1 -> fetch when 1
       
    end fsm
+
    
-   areg[4..0] = ir[25..21] : decode * is_calc_instr
-   areg[4..0] = 31 : decode * is_calc_instr_imm
+   // computation instruction
    
-   breg[4..0] = ir[4..0] : decode * calc_reg
-   dreg[4..0] = ir[29..24] : decode * calc_reg
-   cmd[5..0] = ir[23..19] : decode * calc_reg
-   oe_num[1..0] = 1 : decode * calc_reg
+   // decode -> pcplus1
+   areg[4..0] & breg[4..0] & dreg[4..0] & cmd[5..0] & oe[1..0] & write =
+      ir[25..21] & ir[25..21] & 0b101010 & 0b100000 & 0b01 & 0  | decode * is_calc_instr_reg
+   
+   // decode -> calc_imm
+   areg[4..0] & breg[4..0] & dreg[4..0] & cmd[5..0] & oe[1..0] & write =
+      ir[25..21] & ir[25..21] & 0b101010 & 0b100000 & 0b01 & 0  | decode * is_calc_instr_imm
+   
+   // calc_imm -> pcplus1
+   areg[4..0] & breg[4..0] & dreg[4..0] & cmd[5..0] & oe[1..0] & write =
+      ir[25..21] & 0b101010 & ir[25..21] & 0b100000 & 0b01 & 0  | calc_imm
+   
+   // pcplus1 -> fetch
+   areg[4..0] & breg[4..0] & dreg[4..0] & cmd[5..0] & oe[1..0] & write =
+      ir[25..21] & ir[25..21] & ir[25..21] & 0b100000 & 0b01 & 0 | pcplus1
    
 end module
 

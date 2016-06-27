@@ -15,19 +15,8 @@ Module
   { return {"name": name, "params": params, "instances":instances}; }
 
 
-Signal "signal"     
-  /* duplicates necessary to eliminate left-recursion for compound signals */
-  /* rules for compound signals must be defined first */
-  = name:SignalName _ '[' _ i:NaturalInteger ']' _ '&' _ Signal
-     { return {"type": "vector", "name": name, "start": i, "stop": i, "location": location()}; }
-  / name:SignalName _ '[' _ i:NaturalInteger _ DotDot _ j:NaturalInteger ']' _ '&' _ Signal
-     { return {"type": "vector", "name": name, "start": i, "stop": j, "location": location()}; }
-  / name:SignalName _ '[' _ i:NaturalInteger _ DotDot _ j:NaturalInteger ']' _ '&' _ Signal
-     { return {"type": "vector", "name": name, "start": i, "stop": j, "location": location()}; }
-  / name:SignalName _ '&' _ Signal
-     { return {"type": "scalar", "name": name, "location": location()}; }
-     
-  / name:SignalName _ '[' _ i:NaturalInteger ']'
+Signal
+  = name:SignalName _ '[' _ i:NaturalInteger ']'
      { return {"type": "vector", "name": name, "start": i, "stop": i, "location": location()}; }
   / name:SignalName _ '[' _ i:NaturalInteger _ DotDot _ j:NaturalInteger ']'
      { return {"type": "vector", "name": name, "start": i, "stop": j, "location": location()}; }
@@ -35,6 +24,13 @@ Signal "signal"
      { return {"type": "vector", "name": name, "start": i, "stop": j, "location": location()}; }
   / name:SignalName
      { return {"type": "scalar", "name": name, "location": location()}; }
+
+SignalCompound
+  = signal:Signal _ '&' _ compound:SignalCompound
+     { return [signal].concat(compound); }
+  / signal:Signal
+  { return [signal]; }
+
 
 DotDot
   = '..'
@@ -80,38 +76,44 @@ Instance
   / TriState
   / Assignment
   / Fsm
-  / Array
+  / Map
 
 
-Assignment
-  = signal:Signal _ '=' _ equation:SumOfTerms _
-     { return {'type': 'assignment', 'signal': signal, 'equation': equation}; }
+ExpressionCompound
+  = head:Expression _ '&' _ tail:ExpressionCompound
+     { return [head].concat(tail); }
+  / expression:Expression
+  { return [expression]; }
 
-SumOfTerms "sum of terms"
-  = head:Term _ '+' _ tail:SumOfTerms _
-     { return {'type': 'sum_of_terms', 'terms':[head].concat(tail['terms'])}; }
+Expression
+  = head:Term _ '+' _ tail:Expression
+  { return [head].concat(tail); }
   / term:Term
-     { return {'type': 'sum_of_terms', 'terms':[term]}; }
+  { return [term]; }
+  
+Term
+  = head:Factor _ '*' _ tail:Term
+  { return [head].concat(tail); }
+  / factor:Factor
+  { return [factor]; }
 
-Term "term"
-  = maxterm:MaxTerm _ '*' _ term:Term
-     { return {'type': 'term', 'maxterms': [maxterm].concat(term['maxterms'])}; }
-  / maxterm:MaxTerm
-     { return {'type': 'term', 'maxterms': [maxterm]}; }
-  / value:NaturalInteger
-     { return {'type': 'constant', 'value': value}; }
-
-
-MaxTerm "maxterm"
-  = signal:Signal
+Factor
+  = '(' _ expr:Expression _ ')'
+  { return expr; }
+  / signal:Signal
      { return {'type':'maxterm', 'signal':signal, 'inverted': false}; }
   / '/' _ signal:Signal
      { return {'type':'maxterm', 'signal':signal, 'inverted': true}; }
 
 
+
+Assignment
+  = left:SignalCompound _ '=' _ right:ExpressionCompound _
+     { return {'type': 'assignment', 'leftPart': left, 'rightPart': right}; }
+
 TriState
-  = signal:Signal _ '=' _ equation:SumOfTerms _ ':' _ oe:SumOfTerms
-     { return {'type': 'tri_state', 'signal': signal, 'equation': equation, oe: oe }; }
+  = left:SignalCompound _ '=' _ right:ExpressionCompound _ '|' _ oe:Expression
+     { return {'type': 'tri_state', 'leftPart': left, 'rightPart': right, oe: oe }; }
 
 
 ModuleInstance
@@ -119,12 +121,12 @@ ModuleInstance
      { return {'type': 'module_instance', 'name': name, 'arguments': args}; }
 
 
-Array
-  = 'array' _ input:Signal _ '->' _ output:Signal _ values:(ArrayValue*) _ 'end' _ 'array'
+Map
+  = 'map' _ input:SignalCompound _ '->' _ output:SignalCompound _ values:(MapValue*) _ 'end' _ 'map'
      { return { 'type': 'array', 'input': input, 'output': output, 'values': values }; }
 
-ArrayValue
-  = input:NaturalInteger _ '->' _ output:Integer _
+MapValue
+  = input:BitField _ '->' _ output:BitField _
      { return { 'input': input, 'output': output }; }
      
 
@@ -138,14 +140,16 @@ FsmKeyword
 FsmHeader
   = 'asynchronous'
      { return {'type': 'asynchronous'}; }
-  / init:SignalName _ 'while' _ rst:StateName _ ','? _ 'synchronous' _ 'on' _ clk:SignalName
+  / init:StateName _ 'while' _ rst:SignalName _ ','? _ 'synchronous' _ 'on' _ clk:SignalName
      { return {'type': 'synchronous', 'rst': rst, 'clk': clk, 'init': init}; }
-  / 'synchronous' _ 'on' _ clk:SignalName _ ','? _ init:SignalName _ 'while' _ rst:StateName
+  / 'synchronous' _ 'on' _ clk:SignalName _ ','? _ init:StateName _ 'while' _ rst:SignalName
      { return {'type': 'synchronous', 'rst': rst, 'clk': clk, 'init': init}; }
 
 FsmRule
-  = leftStates:FsmRuleLeft _ '->' _ rightState:StateName _ 'when' _ condition:SumOfTerms _ (';'/',')?
+  = leftStates:FsmRuleLeft _ '->' _ rightState:StateName _ 'when' _ condition:Expression _ (';'/',')?
      { return {'type':'fsm_rule', 'left_states': leftStates, 'right_state': rightState, 'condition': condition}; }
+  / leftStates:FsmRuleLeft _ '->' _ rightState:StateName
+     { return {'type':'fsm_rule', 'left_states': leftStates, 'right_state': rightState }; }
 
 FsmRuleLeft
   = StateNameList
@@ -161,20 +165,15 @@ StateNameList
 
 
 
-
-NaturalInteger
+BitField
   = '0b' [0-1]+
     { return parseInt(text(), 2); }
   / '0x' [0-9abcdefABCDEF]+
     { return parseInt(text(), 16); }
-  / [0-9]+
-    { return parseInt(text(), 10); }
 
-Integer
-  = value:NaturalInteger     
-    { return value; }
-  / '-' _ value:NaturalInteger     
-    { return -value; }
+NaturalInteger
+  = [0-9]+
+    { return parseInt(text(), 10); }
 
 
 separ

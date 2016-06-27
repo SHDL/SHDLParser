@@ -59,6 +59,7 @@ function writeFile(output_file, text) {
    return deferred.promise;
 }
 
+
 try {
    var options = cli.parse();   
    
@@ -92,9 +93,8 @@ try {
       function readModule(moduleName, alreadyReadModules) {
          var deferred = Q.defer();
          var input_file = moduleName + '.shd';
-         var readFilePromise = readFileInPath(input_file, shdlPath, options.verbose);
-         // wait for file-reading to complete then parse it and display syntactic errors
-         readFilePromise
+         // wait for file-reading to complete then parse file content and display syntactic errors
+         readFileInPath(input_file, shdlPath, options.verbose)
          .then(function(fileDescription) {
             try {
                // parse file text
@@ -242,8 +242,8 @@ try {
                   registerEquipotential(instance.signal);
                   // register equation
                   registerSumOfTerms(instance.equation);
-                  // register output enable maxterm
-                  registerMaxTerm(instance.oe);
+                  // register output enable equation
+                  registerSumOfTerms(instance.oe);
                   
                } else if (instance.type === 'module_instance') {
                   for (var i = 0; i < instance.arguments.length; i++) {
