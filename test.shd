@@ -1,0 +1,7 @@
+
+module test(a, b : c)
+   c = (a*b + c) * b
+   
+   a & b & c = 0b101
+   
+end module

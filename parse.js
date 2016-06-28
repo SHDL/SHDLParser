@@ -205,26 +205,26 @@ try {
                }
             }
             
+            function registerExpression(expression) {
+               for (var i = 0; i < expression.length; i++) {
+                  var term = expression[i];
+                  for (var j = 0; j < term.length; j++) {
+                     var factor = term[j];
+                     if (factor.type === 'expr') {
+                        registerExpression(factor.expr);
+                     } else if (factor.type === 'bitfield') {
+                     } else if (factor.type === 'maxterm') {
+                        registerEquipotential(factor.signal);
+                     }
+                  }
+               }
+            }
+            
+            
             // register equipotentials in module interface
             for (var j = 0; j < module.params.length; j++) {
                var param = module.params[j];
                registerEquipotential(param);
-            }
-            
-            function registerSumOfTerms(equation) {
-               for (var i = 0; i < equation.terms; i++) {
-                  registerTerm(equation.terms[i]);
-               }
-            }
-            
-            function registerTerm(term) {
-               for (var i = 0; i < term.maxterms; i++) {
-                  registerMaxTerm(term.maxterms[i]);
-               }
-            }
-            
-            function registerMaxTerm(maxterm) {
-               registerEquipotential(maxterm.signal);
             }
             
             // register equipotentials in module assignments, tri-states, submodule instances and fsm's
@@ -232,18 +232,18 @@ try {
                var instance = module.instances[i];
                
                if (instance.type === 'assignment') {
-                  // register left-term signal
-                  registerEquipotential(instance.signal);
-                  // register equation
-                  registerSumOfTerms(instance.equation);
+                  // register signals present in left part of assignment
+                  for (var j = 0; j < instance.leftPart.length; j++) {
+                     var signal = instance.leftPart[j];
+                     registerEquipotential(signal);
+                  }
+                  // register signals present in right part of assignment
+                  for (var j = 0; j < instance.rightPart.length; j++) {
+                     var expression = instance.rightPart[j];
+                     registerExpression(expression);
+                  }
                   
                } else if (instance.type === 'tri_state') {
-                  // register left-term signal
-                  registerEquipotential(instance.signal);
-                  // register equation
-                  registerSumOfTerms(instance.equation);
-                  // register output enable equation
-                  registerSumOfTerms(instance.oe);
                   
                } else if (instance.type === 'module_instance') {
                   for (var i = 0; i < instance.arguments.length; i++) {
