@@ -1,7 +1,6 @@
 
-module test(a, b : c)
-   c = (a*b + c) * b
-   
-   a & b & c = 0b101
-   
+module test(a, b, c : d)
+
+   d = (a*b + c) * b
+      
 end module
