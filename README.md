@@ -1,11 +1,16 @@
 
-** SIMPLE HARDWARE DESCRIPTION LANGUAGE
+# SIMPLE HARDWARE DESCRIPTION LANGUAGE
 
 GitHub
 SHDL / e**1
 
+1. Running
 Ex:
-node parse.js --shdlpath lib:. --root fifo
+node src/parse.js --shdlpath shdl/lib:shdl --root alarm
 
-Debugging:
-https://github.com/node-inspector/node-inspector
+2. Debugging:
+- install [node-inspector](https://github.com/node-inspector/node-inspector)
+- run
+Ex:
+node-debug src/parse.js --shdlpath shdl/lib:shdl --root alarm
+
