@@ -1,11 +1,13 @@
 
 var fs = require('fs');
 var path = require('path');
-
-var shdlParser = require('./parser');
-var shdlAnalyzer = require('./analyzer');
 var Q = require('Q');
 var commandLineArgs = require('command-line-args');
+
+var parser = require('./parser');
+var checker = require('./checker');
+var translator = require('./translator');
+
 
 var cli = commandLineArgs([
   { name: 'version', alias: 'v', type: Boolean, description: "Print version number" },
@@ -99,7 +101,7 @@ try {
          .then(function(fileDescription) {
             try {
                // parse file text
-               var modules = shdlParser.parse(fileDescription.text);
+               var modules = parser.parse(fileDescription.text);
                // look for submodules and add them to modulesToRead when they are not in allReadModules
                for (var j = 0; j < modules.length; j++) {
                   var module = modules[j];
@@ -148,8 +150,21 @@ try {
       // read root module and all its descendants
       readModule(options.root, [])
       .then(function(modules) {
+         console.log('GG ' + modules.map(function(m) { return m.name; }));
          
-         shdlAnalyzer.checkModules(modules);
+         // root module is first
+         var rootModule = modules[0];
+         
+         // check modules and translate them into VHDL files
+         for (var i = 0; i < modules.length; i++) {
+            var module = modules[i];
+            
+            // check module
+            checker.collectEquipotentials(module);
+            // translate module into vhdl file in path directory
+            translator.convertToVHDL(module, path);
+            
+         }
          
       })
       

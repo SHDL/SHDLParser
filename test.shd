@@ -1,6 +1,14 @@
 
-module test(a, b, c : d)
+module test(a, b, c : s[5])
 
-   d = (a*b + c) * b
+   s[6..0] = 0b111000
+   s[7] = (a*b + c) * b
+   
+   /*
+   s : in std_logic_vector (7 downto 0) ;
+
+   \s\(6 downto 0) <= "111000" ;
+   \s\(7) = (\a\ and \b\ or \c\) and \b\ ;
+   */
       
 end module
